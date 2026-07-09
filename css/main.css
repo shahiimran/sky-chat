@@ -1,12 +1,13 @@
-/* Path: css/main.css */
 :root {
     --bg-dark: #0b0e14;
     --bg-card: #151921;
     --accent: #00d2ff;
+    --accent-glow: rgba(0, 210, 255, 0.3);
     --text-white: #ffffff;
     --text-gray: #94a3b8;
     --error: #ff4b2b;
     --success: #00e676;
+    --louris-glow: #ff00ff; /* Pink glow for Louris */
 }
 
 body {
@@ -21,6 +22,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 20px;
+    margin-bottom: 15px;
 }
 
 .btn {
@@ -30,11 +32,13 @@ body {
     cursor: pointer;
     font-weight: bold;
     width: 100%;
+    transition: 0.3s ease;
 }
 
 .btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { box-shadow: 0 0 15px var(--accent-glow); }
 
-input {
+input, textarea {
     width: 100%;
     padding: 12px;
     margin: 10px 0;
@@ -43,6 +47,74 @@ input {
     color: white;
     border-radius: 8px;
     box-sizing: border-box;
+    font-family: inherit;
 }
 
 .hidden { display: none; }
+
+/* --- 1. SPECIAL EFFECT FOR USER "Louris" --- */
+.louris-name {
+    color: var(--louris-glow) !important;
+    text-shadow: 0 0 8px var(--louris-glow);
+    font-weight: 800 !important;
+}
+
+.louris-msg {
+    border: 1px solid var(--louris-glow) !important;
+    box-shadow: 0 0 10px rgba(255, 0, 255, 0.3) !important;
+    background: rgba(255, 0, 255, 0.05) !important;
+}
+
+/* --- 2. NOTIFICATION SYSTEM --- */
+.nav-item {
+    position: relative;
+    display: inline-block;
+}
+
+.notif-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background-color: var(--error);
+    border: 2px solid var(--bg-dark);
+    border-radius: 50%;
+    display: none; /* Only shows when there is a message/request */
+}
+
+/* --- 3. HOME INBOX STYLES --- */
+.inbox-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 1px solid #222;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.inbox-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.inbox-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+/* --- 4. ABOUT PAGE STYLES --- */
+.about-bio {
+    line-height: 1.8;
+    color: var(--text-gray);
+    white-space: pre-line; /* Keeps your bio spacing looking good */
+}
+
+.about-goal {
+    border-left: 3px solid var(--accent);
+    padding-left: 15px;
+    font-style: italic;
+    margin: 20px 0;
+}
