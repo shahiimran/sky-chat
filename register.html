@@ -3,21 +3,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sky Chat | Register</title>
     <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/auth.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body style="display: flex; align-items: center; justify-content: center; height: 100vh;">
-    <div class="glass-card" style="width: 350px;">
-        <h2>Join Sky Chat</h2>
-        <div id="notice" class="hidden" style="margin-bottom: 10px; font-size: 0.8rem;"></div>
-        
-        <form id="regForm">
-            <input type="text" id="username" placeholder="Username" required>
-            <input type="email" id="email" placeholder="Email Address" required>
-            <input type="password" id="password" placeholder="Password" required>
-            <button type="submit" class="btn btn-primary">Sign Up</button>
-        </form>
-        <p style="margin-top: 15px;">Already a member? <a href="login.html" style="color: var(--accent);">Login</a></p>
+<body>
+    <div class="auth-container">
+        <div class="glass-card auth-card">
+            <div class="auth-header">
+                <i class="fas fa-user-plus logo-icon-small"></i>
+                <h2>Create Account</h2>
+                <p style="color: var(--text-gray);">Join Sky Chat today</p>
+            </div>
+
+            <form id="regForm">
+                <input type="text" id="username" placeholder="Unique Username" required autocomplete="username">
+                <input type="email" id="email" placeholder="Email Address" required autocomplete="email">
+                <input type="password" id="password" placeholder="Password (min 6 chars)" required autocomplete="new-password">
+                <button type="submit" id="regBtn" class="btn btn-primary">Sign Up & Enter</button>
+            </form>
+
+            <div style="text-align: center; margin-top: 20px; font-size: 0.9rem;">
+                <p style="color: var(--text-gray);">Already have an account? <a href="login.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">Login</a></p>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="js/auth.js"></script>
