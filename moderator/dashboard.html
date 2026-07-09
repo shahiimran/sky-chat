@@ -1,0 +1,28 @@
+<!-- Path: moderator/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sky Chat | Moderator</title>
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <div class="admin-grid">
+        <aside class="admin-sidebar">
+            <h2 style="color: var(--accent);">MOD PANEL</h2>
+            <hr style="border: 0.5px solid #333; margin: 20px 0;">
+            <a href="dashboard.html" class="btn btn-primary" style="margin-bottom: 10px;">Reports</a>
+            <a href="../home.html" class="btn btn-outline" style="color:white; border-color:#333;">Exit Panel</a>
+        </aside>
+
+        <main style="padding: 30px; overflow-y: auto;">
+            <h1>User Reports</h1>
+            <div id="reportsContainer" class="admin-card">
+                <p>Loading reports...</p>
+            </div>
+        </main>
+    </div>
+    <script type="module" src="../js/moderator.js"></script>
+</body>
+</html>
