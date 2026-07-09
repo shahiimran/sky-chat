@@ -13,22 +13,20 @@
     <div class="auth-container">
         <div class="glass-card auth-card">
             <div class="auth-header">
-                <i class="fas fa-user-lock"></i>
+                <i class="fas fa-user-lock logo-icon-small"></i>
                 <h2>Welcome Back</h2>
                 <p style="color: var(--text-gray);">Login to your sky account</p>
             </div>
 
-            <div id="loginNotice" class="status-msg hidden"></div>
-
             <form id="loginForm">
-                <input type="email" id="loginEmail" placeholder="Email Address" required>
-                <input type="password" id="loginPass" placeholder="Password" required>
-                <button type="submit" class="btn btn-primary">Login</button>
+                <input type="email" id="loginEmail" placeholder="Email Address" required autocomplete="email">
+                <input type="password" id="loginPass" placeholder="Password" required autocomplete="current-password">
+                <button type="submit" id="loginBtn" class="btn btn-primary">Login</button>
             </form>
 
             <div style="text-align: center; margin-top: 20px; font-size: 0.9rem;">
                 <a href="forgot-password.html" style="color: var(--text-gray); text-decoration: none;">Forgot Password?</a>
-                <p style="margin-top: 10px;">New user? <a href="register.html" style="color: var(--accent);">Create Account</a></p>
+                <p style="margin-top: 10px; color: var(--text-gray);">New user? <a href="register.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">Create Account</a></p>
             </div>
         </div>
     </div>
