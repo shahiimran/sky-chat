@@ -1,3 +1,4 @@
+/* Path: js/auth.js */
 import { auth, db } from './firebase-config.js';
 import { 
     createUserWithEmailAndPassword, 
@@ -14,94 +15,161 @@ import {
     where 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- 1. STAY LOGGED IN (Auto-Redirect) ---
+// --- 1. AUTO REDIRECT (Keep Logged-in Users on Home) ---
 onAuthStateChanged(auth, (user) => {
-    // If logged in and on Login/Register page, go to home
-    const path = window.location.pathname;
-    if (user && (path.includes('login.html') || path.includes('register.html') || path.includes('index.html'))) {
-        window.location.href = "home.html";
+    if (user) {
+        const path = window.location.pathname;
+        if (path.includes('login.html') || path.includes('register.html') || path.includes('forgot-password.html') || path.endsWith('/') || path.includes('index.html')) {
+            window.location.href = "home.html";
+        }
     }
 });
 
-// --- 2. UNIQUE USERNAME & REGISTER ---
+// --- 2. REGISTER LOGIC ---
 const regForm = document.getElementById('regForm');
-if(regForm) {
+if (regForm) {
     regForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const userVal = document.getElementById('username').value.trim();
-        const emailVal = document.getElementById('email').value.trim();
-        const passVal = document.getElementById('password').value;
+        
+        const usernameInput = document.getElementById('username');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const regBtn = document.getElementById('regBtn');
 
-        // CHECK IF USERNAME EXISTS
-        const q = query(collection(db, "users"), where("username", "==", userVal));
-        const querySnapshot = await getDocs(q);
+        const userVal = usernameInput.value.trim();
+        const emailVal = emailInput.value.trim().toLowerCase();
+        const passVal = passwordInput.value;
 
-        if (!querySnapshot.empty) {
-            alert("This username is already taken! Please choose another sky-name.");
+        if (userVal.length < 3) {
+            alert("Username must be at least 3 characters long!");
             return;
         }
 
+        if (passVal.length < 6) {
+            alert("Password must be at least 6 characters long!");
+            return;
+        }
+
+        regBtn.disabled = true;
+        regBtn.innerText = "Checking availability...";
+
         try {
+            // Check if username is already taken (exact match check)
+            const userQuery = query(collection(db, "users"), where("username", "==", userVal));
+            const userSnap = await getDocs(userQuery);
+
+            if (!userSnap.empty) {
+                alert("Username is already taken! Please choose a different name.");
+                regBtn.disabled = false;
+                regBtn.innerText = "Sign Up & Enter";
+                return;
+            }
+
+            regBtn.innerText = "Creating account...";
+
+            // Create Firebase Auth user
             const userCred = await createUserWithEmailAndPassword(auth, emailVal, passVal);
             const user = userCred.user;
 
-            // Save user to database
+            // Save user profile into Firestore
             await setDoc(doc(db, "users", user.uid), {
                 username: userVal,
                 email: emailVal,
                 uid: user.uid,
                 role: 'user',
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userVal}`,
-                createdAt: new Date()
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userVal)}`,
+                createdAt: new Date(),
+                isBanned: false,
+                isMuted: false
             });
 
-            // Redirect instantly (No verification required to enter)
+            // Automatically logged in and redirected to home.html via Firebase SDK
             window.location.href = "home.html";
 
         } catch (err) {
-            alert("Error: " + err.message);
+            console.error("Registration Error:", err);
+            if (err.code === 'auth/email-already-in-use') {
+                alert("An account with this email already exists! Try logging in.");
+            } else {
+                alert("Registration Failed: " + err.message);
+            }
+            regBtn.disabled = false;
+            regBtn.innerText = "Sign Up & Enter";
         }
     });
 }
 
 // --- 3. LOGIN LOGIC ---
 const loginForm = document.getElementById('loginForm');
-if(loginForm) {
+if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('loginEmail').value.trim();
-        const pass = document.getElementById('loginPass').value;
+
+        const emailInput = document.getElementById('loginEmail');
+        const passInput = document.getElementById('loginPass');
+        const loginBtn = document.getElementById('loginBtn');
+
+        const emailVal = emailInput.value.trim().toLowerCase();
+        const passVal = passInput.value;
+
+        loginBtn.disabled = true;
+        loginBtn.innerText = "Logging in...";
 
         try {
-            await signInWithEmailAndPassword(auth, email, pass);
+            await signInWithEmailAndPassword(auth, emailVal, passVal);
             window.location.href = "home.html";
         } catch (err) {
-            alert("Login Failed: Account not found or wrong password.");
+            console.error("Login Error:", err);
+            loginBtn.disabled = false;
+            loginBtn.innerText = "Login";
+
+            if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                alert("Account not found or password incorrect. Please check your details or register.");
+            } else {
+                alert("Login Error: " + err.message);
+            }
         }
     });
 }
 
-// --- 4. FORGOT PASSWORD (Check if user exists first) ---
+// --- 4. FORGOT PASSWORD LOGIC ---
 const resetForm = document.getElementById('resetForm');
-if(resetForm) {
+if (resetForm) {
     resetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('resetEmail').value.trim();
 
-        // Check if email exists in our database
-        const q = query(collection(db, "users"), where("email", "==", email));
-        const snap = await getDocs(q);
+        const resetEmailInput = document.getElementById('resetEmail');
+        const resetBtn = document.getElementById('resetBtn');
+        const emailVal = resetEmailInput.value.trim().toLowerCase();
 
-        if (snap.empty) {
-            alert("Error: There is no account registered with this email.");
-            return;
-        }
+        resetBtn.disabled = true;
+        resetBtn.innerText = "Checking account...";
 
         try {
-            await sendPasswordResetEmail(auth, email);
-            alert("Reset link sent! Please check your email (and Spam).");
+            // Check if account exists in database before sending email
+            const emailQuery = query(collection(db, "users"), where("email", "==", emailVal));
+            const emailSnap = await getDocs(emailQuery);
+
+            if (emailSnap.empty) {
+                alert("No registered account found with this email. Please register first!");
+                resetBtn.disabled = false;
+                resetBtn.innerText = "Send Reset Link";
+                return;
+            }
+
+            resetBtn.innerText = "Sending email...";
+            await sendPasswordResetEmail(auth, emailVal);
+
+            alert("Password reset link sent! Check your email inbox and spam folder.");
+            resetForm.reset();
+            resetBtn.disabled = false;
+            resetBtn.innerText = "Send Reset Link";
+
         } catch (err) {
-            alert(err.message);
+            console.error("Password Reset Error:", err);
+            alert("Error sending reset email: " + err.message);
+            resetBtn.disabled = false;
+            resetBtn.innerText = "Send Reset Link";
         }
     });
 }
