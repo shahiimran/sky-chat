@@ -1,36 +1,41 @@
-<!-- Path: privacy.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sky Chat | Privacy Settings</title>
+    <title>Sky Chat | Privacy</title>
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
     <div class="container">
         <header style="padding: 20px 0;">
             <a href="settings.html" style="color: var(--accent); text-decoration: none;"><i class="fas fa-arrow-left"></i> Settings</a>
-            <h2 style="margin-top: 10px;">Privacy</h2>
+            <h2>Privacy</h2>
         </header>
 
         <div class="glass-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <div>
-                    <h4 style="margin: 0;">Show Email</h4>
-                    <p style="font-size: 0.8rem; color: var(--text-gray);">Allow others to see your email address</p>
-                </div>
-                <input type="checkbox" id="showEmailToggle" style="width: 40px; margin: 0;">
+            <label>Who can message me?</label>
+            <select id="msgPrivacy" style="width: 100%; padding: 12px; background: #1c222d; color: white; border: 1px solid #333; border-radius: 8px; margin-bottom: 20px;">
+                <option value="everyone">Everyone</option>
+                <option value="friends">Friends Only</option>
+                <option value="nobody">Nobody</option>
+            </select>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <span>Show Online Status</span>
+                <input type="checkbox" id="showOnline" style="width: 20px;">
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <div>
-                    <h4 style="margin: 0;">Private Profile</h4>
-                    <p style="font-size: 0.8rem; color: var(--text-gray);">Only friends can view your full profile</p>
-                </div>
-                <input type="checkbox" id="privateProfileToggle" style="width: 40px; margin: 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <span>Show Last Seen</span>
+                <input type="checkbox" id="showLastSeen" style="width: 20px;">
             </div>
 
-            <button id="savePrivacy" class="btn btn-primary">Save Privacy Settings</button>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <span>Read Receipts</span>
+                <input type="checkbox" id="readReceipts" style="width: 20px;">
+            </div>
+
+            <button id="savePrivacy" class="btn btn-primary">Save Privacy</button>
         </div>
     </div>
     <script type="module" src="js/settings.js"></script>
