@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sky Chat | Edit Profile</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/profile.css">
+</head>
+<body>
+    <div class="container">
+        <header style="padding: 20px 0;">
+            <a href="settings.html" style="color: var(--accent); text-decoration: none;"><i class="fas fa-arrow-left"></i> Settings</a>
+            <h2 style="margin-top: 10px;">Edit Profile</h2>
+        </header>
+
+        <div class="glass-card">
+            <label>Choose Avatar:</label>
+            <div class="avatar-grid" id="avatarPicker" style="display: flex; gap: 10px; margin: 15px 0; overflow-x: auto; padding: 10px;">
+                <!-- Avatars will be injected by JS -->
+            </div>
+
+            <form id="editForm">
+                <label>Username</label>
+                <input type="text" id="editUsername" placeholder="Sky Name" required>
+                
+                <label>Status Message</label>
+                <input type="text" id="editStatus" placeholder="What's on your mind?">
+                
+                <label>Bio</label>
+                <textarea id="editBio" style="width: 100%; height: 100px; background: #1c222d; color: white; border-radius: 8px; padding: 10px; border: 1px solid #333; margin-bottom: 15px;"></textarea>
+                
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+        </div>
+    </div>
+    <script type="module" src="js/profile.js"></script>
+</body>
+</html>
