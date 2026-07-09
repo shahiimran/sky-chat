@@ -1,14 +1,54 @@
 /* Path: js/auth.js */
-import { auth } from './firebase-config.js';
+import { auth, db } from './firebase-config.js';
 import { 
+    createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
-    sendPasswordResetEmail 
+    sendPasswordResetEmail,
+    onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- LOGIN LOGIC ---
+// --- 1. AUTO-REDIRECT LOGIC ---
+// If the user is already logged in, send them straight to home.html
+onAuthStateChanged(auth, (user) => {
+    if (user && !window.location.pathname.includes('home.html')) {
+        window.location.href = "home.html";
+    }
+});
+
+// --- 2. REGISTER LOGIC (Auto-Open Website) ---
+const regForm = document.getElementById('regForm');
+if(regForm) {
+    regForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userVal = document.getElementById('username').value;
+        const emailVal = document.getElementById('email').value;
+        const passVal = document.getElementById('password').value;
+
+        try {
+            const userCred = await createUserWithEmailAndPassword(auth, emailVal, passVal);
+            const user = userCred.user;
+
+            // Save user to database
+            await setDoc(doc(db, "users", user.uid), {
+                username: userVal,
+                email: emailVal,
+                uid: user.uid,
+                role: 'user',
+                createdAt: new Date()
+            });
+
+            // INSTANT ENTRY: No need to log in again
+            window.location.href = "home.html"; 
+
+        } catch (err) {
+            alert("Registration Failed: " + err.message);
+        }
+    });
+}
+
+// --- 3. LOGIN LOGIC ---
 const loginForm = document.getElementById('loginForm');
-const loginNotice = document.getElementById('loginNotice');
-
 if(loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -16,27 +56,20 @@ if(loginForm) {
         const pass = document.getElementById('loginPass').value;
 
         try {
-            const userCred = await signInWithEmailAndPassword(auth, email, pass);
-            if(userCred.user.emailVerified) {
-                // If verified, go to home
-                window.location.href = "home.html";
-            } else {
-                loginNotice.innerText = "Please verify your email first! Check your inbox/spam.";
-                loginNotice.className = "status-msg error-msg";
-                loginNotice.classList.remove('hidden');
-            }
+            await signInWithEmailAndPassword(auth, email, pass);
+            window.location.href = "home.html"; // Success!
         } catch (err) {
-            loginNotice.innerText = err.message;
-            loginNotice.className = "status-msg error-msg";
-            loginNotice.classList.remove('hidden');
+            if (err.code === 'auth/user-not-found') {
+                alert("Account not found! Please register first.");
+            } else {
+                alert("Login Error: Check your email/password.");
+            }
         }
     });
 }
 
-// --- RESET PASSWORD LOGIC ---
+// --- 4. FORGOT PASSWORD LOGIC ---
 const resetForm = document.getElementById('resetForm');
-const resetNotice = document.getElementById('resetNotice');
-
 if(resetForm) {
     resetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -44,13 +77,13 @@ if(resetForm) {
 
         try {
             await sendPasswordResetEmail(auth, email);
-            resetNotice.innerText = "Reset link sent! Please check your email inbox and spam folder.";
-            resetNotice.className = "status-msg success-msg";
-            resetNotice.classList.remove('hidden');
+            alert("Check your email for the reset link!");
         } catch (err) {
-            resetNotice.innerText = err.message;
-            resetNotice.className = "status-msg error-msg";
-            resetNotice.classList.remove('hidden');
+            if (err.code === 'auth/user-not-found') {
+                alert("We can't find an account with that email.");
+            } else {
+                alert(err.message);
+            }
         }
     });
 }
