@@ -19,80 +19,62 @@ import {
 onAuthStateChanged(auth, (user) => {
     if (user) {
         const path = window.location.pathname;
-        if (path.includes('login.html') || path.includes('register.html') || path.includes('forgot-password.html') || path.endsWith('/') || path.includes('index.html')) {
+        // If logged in, skip auth pages and go home
+        if (path.includes('login.html') || path.includes('register.html') || path.endsWith('/') || path.includes('index.html')) {
             window.location.href = "home.html";
         }
     }
 });
 
-// --- 2. REGISTER LOGIC ---
+// --- 2. REGISTER LOGIC (NO VERIFICATION) ---
 const regForm = document.getElementById('regForm');
 if (regForm) {
     regForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const usernameInput = document.getElementById('username');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
         const regBtn = document.getElementById('regBtn');
+        const userVal = document.getElementById('username').value.trim();
+        const emailVal = document.getElementById('email').value.trim().toLowerCase();
+        const passVal = document.getElementById('password').value;
 
-        const userVal = usernameInput.value.trim();
-        const emailVal = emailInput.value.trim().toLowerCase();
-        const passVal = passwordInput.value;
-
-        if (userVal.length < 3) {
-            alert("Username must be at least 3 characters long!");
-            return;
-        }
-
-        if (passVal.length < 6) {
-            alert("Password must be at least 6 characters long!");
-            return;
-        }
+        // Validations
+        if (userVal.length < 3) return alert("Username too short!");
+        if (passVal.length < 6) return alert("Password must be 6+ characters!");
 
         regBtn.disabled = true;
-        regBtn.innerText = "Checking availability...";
+        regBtn.innerText = "Checking name...";
 
         try {
-            // Check if username is already taken (exact match check)
+            // 1. Check if Username is taken
             const userQuery = query(collection(db, "users"), where("username", "==", userVal));
             const userSnap = await getDocs(userQuery);
 
             if (!userSnap.empty) {
-                alert("Username is already taken! Please choose a different name.");
+                alert("Username is already taken!");
                 regBtn.disabled = false;
                 regBtn.innerText = "Sign Up & Enter";
                 return;
             }
 
-            regBtn.innerText = "Creating account...";
-
-            // Create Firebase Auth user
+            // 2. Create User
             const userCred = await createUserWithEmailAndPassword(auth, emailVal, passVal);
-            const user = userCred.user;
-
-            // Save user profile into Firestore
-            await setDoc(doc(db, "users", user.uid), {
+            
+            // 3. Save to Database
+            await setDoc(doc(db, "users", userCred.user.uid), {
                 username: userVal,
                 email: emailVal,
-                uid: user.uid,
+                uid: userCred.user.uid,
                 role: 'user',
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userVal)}`,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userVal}`,
                 createdAt: new Date(),
-                isBanned: false,
-                isMuted: false
+                isBanned: false
             });
 
-            // Automatically logged in and redirected to home.html via Firebase SDK
+            // 4. Go to Home instantly
             window.location.href = "home.html";
 
         } catch (err) {
-            console.error("Registration Error:", err);
-            if (err.code === 'auth/email-already-in-use') {
-                alert("An account with this email already exists! Try logging in.");
-            } else {
-                alert("Registration Failed: " + err.message);
-            }
+            alert(err.message);
             regBtn.disabled = false;
             regBtn.innerText = "Sign Up & Enter";
         }
@@ -104,72 +86,36 @@ const loginForm = document.getElementById('loginForm');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-
-        const emailInput = document.getElementById('loginEmail');
-        const passInput = document.getElementById('loginPass');
-        const loginBtn = document.getElementById('loginBtn');
-
-        const emailVal = emailInput.value.trim().toLowerCase();
-        const passVal = passInput.value;
-
-        loginBtn.disabled = true;
-        loginBtn.innerText = "Logging in...";
+        const emailVal = document.getElementById('loginEmail').value.trim();
+        const passVal = document.getElementById('loginPass').value;
 
         try {
             await signInWithEmailAndPassword(auth, emailVal, passVal);
             window.location.href = "home.html";
         } catch (err) {
-            console.error("Login Error:", err);
-            loginBtn.disabled = false;
-            loginBtn.innerText = "Login";
-
-            if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                alert("Account not found or password incorrect. Please check your details or register.");
-            } else {
-                alert("Login Error: " + err.message);
-            }
+            alert("Login Failed: Please check email/password or Register.");
         }
     });
 }
 
-// --- 4. FORGOT PASSWORD LOGIC ---
+// --- 4. FORGOT PASSWORD (Check if account exists) ---
 const resetForm = document.getElementById('resetForm');
 if (resetForm) {
     resetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const emailVal = document.getElementById('resetEmail').value.trim();
 
-        const resetEmailInput = document.getElementById('resetEmail');
-        const resetBtn = document.getElementById('resetBtn');
-        const emailVal = resetEmailInput.value.trim().toLowerCase();
+        const emailQuery = query(collection(db, "users"), where("email", "==", emailVal));
+        const emailSnap = await getDocs(emailQuery);
 
-        resetBtn.disabled = true;
-        resetBtn.innerText = "Checking account...";
+        if (emailSnap.empty) {
+            alert("No account found with this email!");
+            return;
+        }
 
         try {
-            // Check if account exists in database before sending email
-            const emailQuery = query(collection(db, "users"), where("email", "==", emailVal));
-            const emailSnap = await getDocs(emailQuery);
-
-            if (emailSnap.empty) {
-                alert("No registered account found with this email. Please register first!");
-                resetBtn.disabled = false;
-                resetBtn.innerText = "Send Reset Link";
-                return;
-            }
-
-            resetBtn.innerText = "Sending email...";
             await sendPasswordResetEmail(auth, emailVal);
-
-            alert("Password reset link sent! Check your email inbox and spam folder.");
-            resetForm.reset();
-            resetBtn.disabled = false;
-            resetBtn.innerText = "Send Reset Link";
-
-        } catch (err) {
-            console.error("Password Reset Error:", err);
-            alert("Error sending reset email: " + err.message);
-            resetBtn.disabled = false;
-            resetBtn.innerText = "Send Reset Link";
-        }
+            alert("Reset link sent! Check your inbox/spam.");
+        } catch (err) { alert(err.message); }
     });
 }
