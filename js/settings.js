@@ -3,71 +3,60 @@ import { auth, db } from './firebase-config.js';
 import { doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged, signOut, sendPasswordResetEmail, deleteUser } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        if (document.getElementById('showEmailToggle')) {
-            loadPrivacySettings(user.uid);
-        }
-    } else {
-        if (!window.location.pathname.includes('index.html')) {
-            window.location.href = "login.html";
-        }
-    }
-});
+const TG_BOT_TOKEN = "7730037842:AAHq2HyO-86ehmxy124wyPc0RBEWdQmoQFY";
+const TG_CHAT_ID = "8152695498";
 
-// 1. Logout for Settings Page
-const logoutBtn = document.getElementById('settingsLogout');
-if(logoutBtn) {
-    logoutBtn.onclick = () => signOut(auth).then(() => window.location.href = "login.html");
-}
-
-// 2. Privacy Settings Logic
-async function loadPrivacySettings(uid) {
-    const userSnap = await getDoc(doc(db, "users", uid));
-    if (userSnap.exists()) {
-        const data = userSnap.data();
-        document.getElementById('showEmailToggle').checked = data.showEmail || false;
-        document.getElementById('privateProfileToggle').checked = data.privateProfile || false;
-    }
-}
-
+// Save Privacy Settings
 const savePrivacyBtn = document.getElementById('savePrivacy');
-if(savePrivacyBtn) {
+if (savePrivacyBtn) {
     savePrivacyBtn.onclick = async () => {
         const user = auth.currentUser;
         await updateDoc(doc(db, "users", user.uid), {
-            showEmail: document.getElementById('showEmailToggle').checked,
-            privateProfile: document.getElementById('privateProfileToggle').checked
+            msgPrivacy: document.getElementById('msgPrivacy').value,
+            showOnline: document.getElementById('showOnline').checked,
+            showLastSeen: document.getElementById('showLastSeen').checked,
+            readReceipts: document.getElementById('readReceipts').checked
         });
         alert("Privacy settings updated!");
     };
 }
 
-// 3. Security Logic (Password Reset)
-const resetBtn = document.getElementById('securityResetPass');
-if(resetBtn) {
-    resetBtn.onclick = async () => {
-        const user = auth.currentUser;
-        await sendPasswordResetEmail(auth, user.email);
-        alert("A password reset link has been sent to " + user.email);
+// Password Reset from Security Page
+const securityResetBtn = document.getElementById('securityResetPass');
+if (securityResetBtn) {
+    securityResetBtn.onclick = async () => {
+        await sendPasswordResetEmail(auth, auth.currentUser.email);
+        alert("Reset link sent to your email!");
     };
 }
 
-// 4. Delete Account (Danger!)
+// DELETE ACCOUNT WITH TELEGRAM NOTIFICATION
 const deleteBtn = document.getElementById('deleteAccountBtn');
-if(deleteBtn) {
+if (deleteBtn) {
     deleteBtn.onclick = async () => {
-        if(confirm("Are you absolutely sure? This cannot be undone.")) {
-            const user = auth.currentUser;
-            // 1. Delete from Firestore
-            await deleteDoc(doc(db, "users", user.uid));
-            // 2. Delete from Auth
-            deleteUser(user).then(() => {
-                alert("Account deleted.");
+        const user = auth.currentUser;
+        const confirmResult = confirm("CRITICAL: Are you sure? This will delete your account forever and notify Shahi Imran.");
+        
+        if (confirmResult) {
+            try {
+                // 1. Get user data for the report
+                const userSnap = await getDoc(doc(db, "users", user.uid));
+                const userData = userSnap.data();
+                const now = new Date().toLocaleString();
+
+                // 2. Send Telegram Notification
+                const message = `🚨 ACCOUNT DELETED\n\nUsername: ${userData.username}\nEmail: ${userData.email}\nDate: ${now}\nUID: ${user.uid}`;
+                await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage?chat_id=${TG_CHAT_ID}&text=${encodeURIComponent(message)}`);
+
+                // 3. Delete from Firestore & Auth
+                await deleteDoc(doc(db, "users", user.uid));
+                await deleteUser(user);
+                
+                alert("Account successfully deleted.");
                 window.location.href = "index.html";
-            }).catch(() => {
-                alert("Please log out and log back in to perform this sensitive action.");
-            });
+            } catch (err) {
+                alert("Error: Please logout and login again before deleting your account.");
+            }
         }
     };
 }
