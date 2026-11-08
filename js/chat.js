@@ -1,69 +1,112 @@
-/* Path: js/chat.js */
+/* Sky Chat v2: safer global chat rendering and validation. */
 import { auth, db } from './firebase-config.js';
-import { 
-    collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc 
+import {
+  collection, addDoc, query, orderBy, onSnapshot, serverTimestamp,
+  deleteDoc, doc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-let currentUser = null;
 const messagesDisplay = document.getElementById('messagesDisplay');
 const chatForm = document.getElementById('chatForm');
+const msgInput = document.getElementById('msgInput');
+
+let currentUser = null;
+let stopMessages = null;
 
 onAuthStateChanged(auth, (user) => {
-    if (user) {
-        currentUser = user;
-        loadMessages();
-    } else {
-        window.location.href = "login.html";
-    }
+  currentUser = user || null;
+  if (!currentUser) {
+    if (stopMessages) stopMessages();
+    window.location.href = "login.html";
+    return;
+  }
+  if (messagesDisplay && !stopMessages) loadMessages();
 });
 
-// 1. Send Message
-chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = document.getElementById('msgInput').value;
+chatForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!currentUser) {
+    window.location.href = "login.html";
+    return;
+  }
 
+  const messageText = msgInput?.value.trim() || '';
+  if (!messageText) return;
+  if (messageText.length > 1000) {
+    alert('Messages must be 1,000 characters or fewer.');
+    return;
+  }
+
+  const submitButton = chatForm.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = true;
+
+  try {
     await addDoc(collection(db, "globalMessages"), {
-        text: text,
-        senderId: currentUser.uid,
-        senderName: currentUser.email.split('@')[0],
-        timestamp: serverTimestamp()
+      text: messageText,
+      senderId: currentUser.uid,
+      senderName: currentUser.email?.split('@')[0] || 'Member',
+      timestamp: serverTimestamp()
     });
-
     chatForm.reset();
+  } catch (error) {
+    console.error('Could not send message:', error);
+    alert('Message could not be sent. Please try again.');
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 });
 
-// 2. Load Messages in Real-time
 function loadMessages() {
-    const q = query(collection(db, "globalMessages"), orderBy("timestamp", "asc"));
-    
-    onSnapshot(q, (snapshot) => {
-        messagesDisplay.innerHTML = "";
-        snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const id = docSnap.id;
-            const isMe = data.senderId === currentUser.uid;
+  const messagesQuery = query(collection(db, "globalMessages"), orderBy("timestamp", "asc"));
+  stopMessages = onSnapshot(messagesQuery, (snapshot) => {
+    messagesDisplay.replaceChildren();
 
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${isMe ? 'sent' : 'received'}`;
-            
-            msgDiv.innerHTML = `
-                <span class="user-name">${data.senderName}</span>
-                <p>${data.text}</p>
-                <span class="time">
-                    ${data.timestamp ? new Date(data.timestamp.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...'}
-                    ${isMe ? `<button class="delete-btn" onclick="deleteMsg('${id}')"><i class="fas fa-trash"></i></button>` : ''}
-                </span>
-            `;
-            messagesDisplay.appendChild(msgDiv);
-        });
-        messagesDisplay.scrollTop = messagesDisplay.scrollHeight;
+    snapshot.forEach((messageDoc) => {
+      const data = messageDoc.data();
+      const isMine = data.senderId === currentUser?.uid;
+      const message = document.createElement('div');
+      message.className = `message ${isMine ? 'sent' : 'received'}`;
+
+      const sender = document.createElement('span');
+      sender.className = 'user-name';
+      sender.textContent = String(data.senderName || 'Member');
+
+      const body = document.createElement('p');
+      // Never interpret user-submitted text as HTML.
+      body.textContent = String(data.text || '');
+
+      const meta = document.createElement('span');
+      meta.className = 'time';
+      meta.append(document.createTextNode(data.timestamp?.toDate
+        ? data.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : 'Sending…'));
+
+      if (isMine) {
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'delete-btn';
+        removeButton.textContent = 'Delete';
+        removeButton.setAttribute('aria-label', 'Delete your message');
+        removeButton.addEventListener('click', () => deleteMessage(messageDoc.id));
+        meta.append(' ', removeButton);
+      }
+
+      message.append(sender, body, meta);
+      messagesDisplay.appendChild(message);
     });
+    messagesDisplay.scrollTop = messagesDisplay.scrollHeight;
+  }, (error) => {
+    console.error('Could not load messages:', error);
+    messagesDisplay.textContent = 'Messages could not be loaded. Please refresh.';
+  });
 }
 
-// 3. Delete Message Logic
-window.deleteMsg = async (id) => {
-    if(confirm("Delete this message?")) {
-        await deleteDoc(doc(db, "globalMessages", id));
-    }
-};
+async function deleteMessage(messageId) {
+  if (!currentUser || !messageId || !window.confirm('Delete this message?')) return;
+  try {
+    await deleteDoc(doc(db, "globalMessages", messageId));
+  } catch (error) {
+    console.error('Could not delete message:', error);
+    alert('Message could not be deleted.');
+  }
+}
