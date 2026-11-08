@@ -1,62 +1,32 @@
-# Sky Chat security notes
+# Sky Chat v2 — security and deployment notes
 
-This document records required launch controls. It is not a claim that the current deployment is already secure.
+This branch contains a security baseline, not a production certification.
 
-## Changes in this v2 branch
+## Implemented in this branch
+- Safer global chat rendering using DOM text nodes and `textContent`.
+- Client-side message validation and send/load/delete error handling.
+- Removed the hardcoded admin password page gate. Admin UI checks the Firebase custom claim `admin === true`.
+- Removed a Telegram bot token from browser code and removed sending users' email/UID to Telegram during account deletion.
+- Added `firestore.rules` with deny-by-default access and ownership checks.
+- Registration now separates private `users/{uid}` account data (including email) from public `publicProfiles/{uid}` profile data.
+- Friend list reads public profile documents rather than private account documents.
 
-- Global chat messages are rendered with DOM text nodes / `textContent`, not interpolated into `innerHTML`.
-- Empty messages are ignored and messages over 1,000 characters are rejected in the client.
-- Chat send/delete/load failures are handled without silently pretending success.
-- The exposed numeric admin password gate has been removed.
-- The admin page now checks for a Firebase ID token custom claim: `admin === true`.
+## IMPORTANT: exposed Telegram bot token
+A Telegram bot token was previously committed in `js/settings.js`. Removing it from the latest branch does not erase it from Git history or revoke it. The bot owner must revoke that token in Telegram's BotFather and create a new one if still needed. Do not put the replacement token in browser JavaScript or GitHub.
 
-## Required Firebase setup
+## Firebase setup required
+1. In Firebase Console, open Firestore Rules and publish the contents of `firestore.rules`. Review the rules against your live database before publishing.
+2. Existing accounts need a matching `publicProfiles/{uid}` document. The new registration code creates it for new accounts; old accounts need a one-time migration from their existing profile fields. Do not copy email or other private account data into public profiles.
+3. Admin/moderator custom claims must be assigned from a trusted environment using Firebase Admin SDK. Never assign them from browser code. The admin UI gate is not a substitute for Firestore authorization.
+4. Test with ordinary, blocked, moderator and admin accounts in Firebase Emulator Suite before opening the app publicly.
 
-### 1. Admin custom claim
+## Known limitations / not yet launch-ready
+- The DM client in the original repository is incomplete/broken; private chat needs a complete implementation and rules tests.
+- Discover and some referenced scripts/pages were missing from the original repository.
+- Friend acceptance is not transactional and duplicate friend records are still possible.
+- Existing accounts need public profile migration; otherwise their friend cards may not display.
+- Ban enforcement is not yet applied consistently to every collection/action.
+- Moderator workflow, report creation UI, block controls, rate limits, email verification and account-data cleanup need implementation.
+- Account deletion and retention need a trusted cleanup process for messages, friend links and other related data.
 
-The Firebase project owner must assign the `admin` custom claim to the intended administrator UID from a trusted server using the Firebase Admin SDK. Never set privileged claims from browser code. After assigning the claim, the user should sign out and sign in again, or refresh the ID token.
-
-Moderator access should use a separate `moderator` claim and a separate permission set.
-
-### 2. Firestore Security Rules
-
-The repository did not contain a Firestore rules file during this review. Before launch, create and deploy rules that enforce at minimum:
-
-- A signed-in user can update only explicitly allowed fields on their own profile.
-- Public profile reads never expose private email, account metadata or moderation notes.
-- Users can create messages only as themselves; sender UID, timestamp and message length are validated.
-- Users can delete only their own messages; moderators/admins use separately authorized server-side actions.
-- Friend requests can only be created by the sender and read/accepted by the intended recipient.
-- Users cannot grant themselves roles, remove bans, change moderation state or edit another user's private data.
-- All unrecognized collections and operations are denied by default.
-
-Do not deploy broad authenticated read/write rules such as `allow read, write: if request.auth != null`.
-
-### 3. Admin actions
-
-The UI custom-claim check is only a navigation/access gate. Firestore rules or trusted Cloud Functions must independently authorize every privileged read and write. Otherwise an ordinary user could bypass the page and call the database directly.
-
-### 4. Privacy and teen safety
-
-Before public use, provide:
-- Block and report controls that work across chat and profile surfaces.
-- A moderator review queue with restricted access and an audit trail.
-- Rate limits and spam controls.
-- Private-by-default profile fields and minimal data collection.
-- Account deletion and data retention procedures.
-- Clear community rules and a process for urgent safety reports.
-
-Do not collect exact location, school, phone number or other sensitive details as public profile fields.
-
-## Known work still outstanding
-
-- The existing registration flow has no email verification.
-- Existing user documents store email alongside profile data; migrate to separate private account records before broad user-directory access.
-- The friend request and friend-link writes need transactional authorization and duplicate prevention.
-- The moderator panel and report workflow need a full permissions review.
-- Ban enforcement must be applied to all authenticated app operations, not only displayed in the UI.
-- Test all rules in the Firebase Emulator Suite with ordinary, blocked, moderator and admin accounts.
-
-## Deployment warning
-
-Do not treat this branch as production-ready until Firestore rules, role assignment, moderation and the above tests are complete.
+Do not deploy as a public teen community until moderation, reporting, blocking, privacy and the above tests are complete.

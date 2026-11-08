@@ -1,62 +1,42 @@
-/* Path: js/profile.js */
 import { auth, db } from './firebase-config.js';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-const avatars = [
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Buddy",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Casper",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Lola",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Max"
-];
-
-let selectedAvatar = "";
-
-// 1. Load current data into the form
-async function initEditProfile() {
-    const user = auth.currentUser;
-    const snap = await getDoc(doc(db, "users", user.uid));
-    const data = snap.data();
-
-    document.getElementById('editUsername').value = data.username;
-    document.getElementById('editStatus').value = data.status || "";
-    document.getElementById('editBio').value = data.bio || "";
-    selectedAvatar = data.avatar || avatars[0];
-
-    renderPicker();
+const avatars=['Felix','Aneka','Buddy','Casper','Lola','Max'].map(seed=>'https://api.dicebear.com/7.x/avataaars/svg?seed='+seed);
+let selectedAvatar='';
+async function initEditProfile(user){
+  const snap=await getDoc(doc(db,'publicProfiles',user.uid));
+  if(!snap.exists()) throw new Error('Profile missing');
+  const data=snap.data();
+  document.getElementById('editUsername').value=data.username||'';
+  document.getElementById('editStatus').value=data.status||'';
+  document.getElementById('editBio').value=data.bio||'';
+  selectedAvatar=data.avatar||avatars[0]; renderPicker();
 }
-
-function renderPicker() {
-    const picker = document.getElementById('avatarPicker');
-    picker.innerHTML = "";
-    avatars.forEach(url => {
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.width = "60px";
-        img.style.borderRadius = "50%";
-        img.style.cursor = "pointer";
-        img.style.border = (url === selectedAvatar) ? "3px solid var(--accent)" : "3px solid transparent";
-        img.onclick = () => {
-            selectedAvatar = url;
-            renderPicker();
-        };
-        picker.appendChild(img);
-    });
+function renderPicker(){
+  const picker=document.getElementById('avatarPicker'); if(!picker)return;
+  picker.replaceChildren();
+  avatars.forEach(url=>{
+    const img=document.createElement('img'); img.src=url; img.alt='Choose avatar';
+    img.style.cssText='width:60px;border-radius:50%;cursor:pointer;border:3px solid '+(url===selectedAvatar?'var(--accent)':'transparent');
+    img.addEventListener('click',()=>{selectedAvatar=url;renderPicker();}); picker.appendChild(img);
+  });
 }
-
-const editForm = document.getElementById('editForm');
-if (editForm) {
-    auth.onAuthStateChanged(user => { if(user) initEditProfile(); });
-    editForm.onsubmit = async (e) => {
-        e.preventDefault();
-        await updateDoc(doc(db, "users", auth.currentUser.uid), {
-            username: document.getElementById('editUsername').value,
-            status: document.getElementById('editStatus').value,
-            bio: document.getElementById('editBio').value,
-            avatar: selectedAvatar
-        });
-        alert("Profile Updated!");
-        window.location.href = "profile.html";
-    };
+const editForm=document.getElementById('editForm');
+if(editForm){
+  auth.onAuthStateChanged(async user=>{
+    if(!user){location.href='login.html';return;}
+    try{await initEditProfile(user);}catch(err){console.error(err);alert('Could not load profile.');}
+  });
+  editForm.addEventListener('submit',async e=>{
+    e.preventDefault(); const user=auth.currentUser;if(!user)return;
+    const username=document.getElementById('editUsername').value.trim();
+    if(!/^[a-zA-Z0-9_]{3,20}$/.test(username))return alert('Username: 3–20 letters, numbers or underscores.');
+    try{
+      await updateDoc(doc(db,'publicProfiles',user.uid),{
+        username,usernameLower:username.toLowerCase(),
+        status:document.getElementById('editStatus').value.trim().slice(0,80),
+        bio:document.getElementById('editBio').value.trim().slice(0,300),avatar:selectedAvatar
+      });
+      alert('Profile updated.');location.href='profile.html';
+    }catch(err){console.error(err);alert('Could not update profile.');}
+  });
 }

@@ -1,99 +1,53 @@
-/* Path: js/friends.js */
 import { auth, db } from './firebase-config.js';
-import { 
-    collection, addDoc, query, where, onSnapshot, doc, getDoc, updateDoc, deleteDoc, setDoc 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection,query,where,onSnapshot,doc,getDoc,deleteDoc,addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        if (document.getElementById('friendsList')) loadFriends(user.uid);
-        if (document.getElementById('requestList')) loadRequests(user.uid);
-        updateRequestBadge(user.uid);
-    } else {
-        window.location.href = "login.html";
-    }
+let uidNow=null;
+onAuthStateChanged(auth,user=>{
+  if(!user){location.href='login.html';return;} uidNow=user.uid;
+  if(document.getElementById('friendsList'))loadFriends(user.uid);
+  if(document.getElementById('requestList'))loadRequests(user.uid);
+  updateBadge(user.uid);
 });
-
-// 1. Load Friends List
-function loadFriends(myUid) {
-    const friendsList = document.getElementById('friendsList');
-    const q = query(collection(db, "friends"), where("users", "array-contains", myUid));
-
-    onSnapshot(q, async (snapshot) => {
-        friendsList.innerHTML = "";
-        if (snapshot.empty) friendsList.innerHTML = "No friends yet. Go to Discover!";
-        
-        snapshot.forEach(async (d) => {
-            const data = d.data();
-            const otherUid = data.users.find(id => id !== myUid);
-            const userSnap = await getDoc(doc(db, "users", otherUid));
-            const userData = userSnap.data();
-
-            friendsList.innerHTML += `
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #222;">
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <img src="${userData.avatar || ''}" style="width: 40px; border-radius: 50%;">
-                        <span>${userData.username}</span>
-                    </div>
-                    <a href="conversation.html?uid=${otherUid}" class="btn btn-primary" style="width: auto; padding: 5px 15px;">Chat</a>
-                </div>
-            `;
-        });
-    });
+function loadFriends(uid){
+ const el=document.getElementById('friendsList');
+ onSnapshot(query(collection(db,'friends'),where('users','array-contains',uid)),async snap=>{
+  el.replaceChildren();if(snap.empty){el.textContent='No friends yet. Visit Discover.';return;}
+  for(const d of snap.docs){
+   const other=d.data().users.find(x=>x!==uid);if(!other)continue;
+   const p=await getDoc(doc(db,'publicProfiles',other));if(!p.exists())continue;const v=p.data();
+   const row=document.createElement('div');row.className='friend-row';
+   const img=document.createElement('img');img.src=v.avatar||'';img.alt='';img.width=40;img.height=40;img.style.borderRadius='50%';
+   const name=document.createElement('span');name.textContent=v.username||'Member';
+   const link=document.createElement('a');link.href='conversation.html?uid='+encodeURIComponent(other);link.className='btn btn-primary';link.textContent='Chat';
+   row.append(img,name,link);el.appendChild(row);
+  }
+ },err=>{console.error(err);el.textContent='Could not load friends.';});
 }
-
-// 2. Load Pending Requests
-function loadRequests(myUid) {
-    const requestList = document.getElementById('requestList');
-    const q = query(collection(db, "friendRequests"), where("to", "==", myUid), where("status", "==", "pending"));
-
-    onSnapshot(q, (snapshot) => {
-        requestList.innerHTML = "";
-        if (snapshot.empty) requestList.innerHTML = "No pending requests.";
-
-        snapshot.forEach((d) => {
-            const req = d.data();
-            requestList.innerHTML += `
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #333;">
-                    <span><b>${req.fromName}</b> wants to be your friend.</span>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-primary" style="width: auto; padding: 5px 10px;" onclick="acceptReq('${d.id}', '${req.from}', '${myUid}')">Accept</button>
-                        <button class="btn btn-outline" style="width: auto; border: 1px solid red; color: red; padding: 5px 10px;" onclick="deleteReq('${d.id}')">Decline</button>
-                    </div>
-                </div>
-            `;
-        });
-    });
+function loadRequests(uid){
+ const el=document.getElementById('requestList');
+ onSnapshot(query(collection(db,'friendRequests'),where('to','==',uid),where('status','==','pending')),snap=>{
+  el.replaceChildren();if(snap.empty){el.textContent='No pending requests.';return;}
+  snap.forEach(d=>{
+   const v=d.data(),row=document.createElement('div'),label=document.createElement('span');
+   label.textContent=(v.fromName||'A member')+' wants to connect.';
+   const yes=document.createElement('button');yes.className='btn btn-primary';yes.textContent='Accept';yes.addEventListener('click',()=>accept(d.id,v.from,uid));
+   const no=document.createElement('button');no.className='btn btn-outline';no.textContent='Decline';no.addEventListener('click',()=>decline(d.id));
+   row.append(label,yes,no);el.appendChild(row);
+  });
+ },err=>{console.error(err);el.textContent='Could not load requests.';});
 }
-
-// 3. Accept Request Logic
-window.acceptReq = async (reqId, fromUid, toUid) => {
-    // Create friend link
-    await addDoc(collection(db, "friends"), {
-        users: [fromUid, toUid],
-        timestamp: new Date()
-    });
-    // Delete the request
-    await deleteDoc(doc(db, "friendRequests", reqId));
-    alert("Friend added!");
-};
-
-window.deleteReq = async (id) => {
-    await deleteDoc(doc(db, "friendRequests", id));
-};
-
-function updateRequestBadge(myUid) {
-    const q = query(collection(db, "friendRequests"), where("to", "==", myUid), where("status", "==", "pending"));
-    onSnapshot(q, (snapshot) => {
-        const badge = document.getElementById('reqBadge');
-        if (badge) {
-            if (snapshot.size > 0) {
-                badge.innerText = snapshot.size;
-                badge.style.display = "inline";
-            } else {
-                badge.style.display = "none";
-            }
-        }
-    });
+async function accept(id,from,to){
+ if(uidNow!==to)return;
+ try{
+  const ref=doc(db,'friendRequests',id),snap=await getDoc(ref);
+  if(!snap.exists()||snap.data().to!==uidNow||snap.data().from!==from||snap.data().status!=='pending')throw Error('Request changed');
+  await addDoc(collection(db,'friends'),{users:[from,to],timestamp:new Date()});
+  await deleteDoc(ref);
+ }catch(err){console.error(err);alert('Could not accept request. Refresh and try again.');}
+}
+async function decline(id){try{await deleteDoc(doc(db,'friendRequests',id));}catch(err){console.error(err);alert('Could not decline request.');}}
+function updateBadge(uid){
+ onSnapshot(query(collection(db,'friendRequests'),where('to','==',uid),where('status','==','pending')),snap=>{
+  const b=document.getElementById('reqBadge');if(b){b.textContent=String(snap.size);b.style.display=snap.size?'inline':'none';}
+ });
 }
