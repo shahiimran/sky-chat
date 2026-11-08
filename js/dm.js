@@ -24,11 +24,12 @@ onAuthStateChanged(auth, async user => {
 function chatIdFor(a, b) { return [a, b].sort().join('__'); }
 
 function loadInbox(uid) {
-  const q = query(collection(db, 'chats'), where('members', 'array-contains', uid), orderBy('lastUpdate', 'desc'), limit(50));
+  const q = query(collection(db, 'chats'), where('members', 'array-contains', uid), limit(50));
   stopInbox = onSnapshot(q, async snap => {
     inbox.replaceChildren();
     if (snap.empty) { inbox.textContent = 'No conversations yet. Add a friend from Discover to start chatting.'; return; }
-    for (const chatDoc of snap.docs) {
+    const orderedDocs = [...snap.docs].sort((a, b) => (b.data().lastUpdate?.toMillis?.() || 0) - (a.data().lastUpdate?.toMillis?.() || 0));
+    for (const chatDoc of orderedDocs) {
       const chat = chatDoc.data();
       const otherUid = (chat.members || []).find(id => id !== uid);
       if (!otherUid) continue;
