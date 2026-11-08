@@ -1,24 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
-    }
-
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
     function isModerator() {
-      return signedIn() && (request.auth.token.admin == true ||
-        request.auth.token.moderator == true);
+      return signedIn() && (request.auth.token.admin == true || request.auth.token.moderator == true);
+    }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Public directory contains only fields intended for other signed-in members.
+    match /publicProfiles/{uid} {
+      allow read: if signedIn();
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly(['uid','username','usernameLower','avatar','status','bio','createdAt'])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 3
+        && request.resource.data.username.size() <= 20;
+      allow update: if isSelf(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['username','usernameLower','avatar','status','bio'])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 3
+        && request.resource.data.username.size() <= 20
+        && request.resource.data.bio is string
+        && request.resource.data.bio.size() <= 300
+        && request.resource.data.status is string
+        && request.resource.data.status.size() <= 80;
+      allow delete: if isSelf(uid) || isAdmin();
     }
 
-    function isSelf(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
-    // Private account documents: only the owner and trusted admins can read.
+    // Private account documents; never expose email to the public directory.
     match /users/{uid} {
       allow create: if isSelf(uid)
         && request.resource.data.uid == uid
@@ -29,15 +42,11 @@ service cloud.firestore {
           && request.resource.data.uid == resource.data.uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['username', 'avatar', 'status', 'bio', 'msgPrivacy',
-              'showOnline', 'showLastSeen', 'readReceipts']))
-        || (isAdmin()
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['isBanned']));
+            .hasOnly(['msgPrivacy','showOnline','showLastSeen','readReceipts']))
+        || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isBanned']));
       allow delete: if isSelf(uid) || isAdmin();
     }
 
-    // Global chat: signed-in members may read and post as themselves.
     match /globalMessages/{messageId} {
       allow read: if signedIn();
       allow create: if signedIn()
@@ -47,16 +56,12 @@ service cloud.firestore {
         && request.resource.data.text.size() <= 1000
         && request.resource.data.senderName is string
         && request.resource.data.senderName.size() <= 40;
-      allow delete: if signedIn() &&
-        (resource.data.senderId == request.auth.uid || isModerator());
+      allow delete: if signedIn() && (resource.data.senderId == request.auth.uid || isModerator());
       allow update: if false;
     }
 
-    // Friend requests are visible only to their sender and recipient.
     match /friendRequests/{requestId} {
-      allow read: if signedIn() &&
-        (resource.data.from == request.auth.uid ||
-         resource.data.to == request.auth.uid || isModerator());
+      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid || isModerator());
       allow create: if signedIn()
         && request.resource.data.from == request.auth.uid
         && request.resource.data.to is string
@@ -67,13 +72,10 @@ service cloud.firestore {
         && resource.data.status == 'pending'
         && request.resource.data.from == resource.data.from
         && request.resource.data.to == resource.data.to
-        && request.resource.data.status in ['accepted', 'declined'];
-      allow delete: if signedIn() &&
-        (resource.data.from == request.auth.uid ||
-         resource.data.to == request.auth.uid || isModerator());
+        && request.resource.data.status in ['accepted','declined'];
+      allow delete: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid || isModerator());
     }
 
-    // Friendship records are readable only by their two participants.
     match /friends/{friendId} {
       allow read: if signedIn() && request.auth.uid in resource.data.users;
       allow create: if signedIn()
@@ -84,7 +86,6 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid in resource.data.users;
     }
 
-    // Reports can be submitted by members; only moderators can inspect/manage.
     match /reports/{reportId} {
       allow create: if signedIn()
         && request.resource.data.reporterUid == request.auth.uid
@@ -95,7 +96,6 @@ service cloud.firestore {
       allow read, update, delete: if isModerator();
     }
 
-    // Chat documents and their messages require membership in the chat.
     match /chats/{chatId} {
       allow read: if signedIn() && request.auth.uid in resource.data.members;
       allow create: if signedIn()
@@ -104,13 +104,10 @@ service cloud.firestore {
         && request.resource.data.members.size() == 2;
       allow update: if signedIn()
         && request.auth.uid in resource.data.members
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['lastUpdate']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastUpdate']);
       allow delete: if false;
-
       match /messages/{messageId} {
-        allow read: if signedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow read: if signedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
         allow create: if signedIn()
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members
           && request.resource.data.senderId == request.auth.uid
@@ -118,12 +115,10 @@ service cloud.firestore {
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000;
         allow update: if false;
-        allow delete: if signedIn() &&
-          (resource.data.senderId == request.auth.uid || isModerator());
+        allow delete: if signedIn() && (resource.data.senderId == request.auth.uid || isModerator());
       }
     }
 
-    // Everything not explicitly listed above is private by default.
     match /{document=**} {
       allow read, write: if false;
     }
