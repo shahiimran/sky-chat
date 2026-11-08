@@ -1,30 +1,40 @@
-<button id="addFriendBtn" class="btn btn-primary" style="width: auto; margin-top: 15px;"><i class="fas fa-user-plus"></i> Add Friend</button>
-
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Sky Chat | Member Profile</title><link rel="stylesheet" href="css/main.css"></head>
+<body><main class="container" style="max-width:650px;padding-top:24px">
+<a href="users.html" style="color:var(--accent)">← Community</a>
+<section class="glass-card" style="margin-top:20px;text-align:center;padding:28px">
+<img id="memberAvatar" alt="" style="width:100px;height:100px;border-radius:50%;object-fit:cover">
+<h2 id="memberName">Loading…</h2><p id="memberStatus"></p><p id="memberBio"></p>
+<button id="addFriendBtn" class="btn btn-primary" style="width:auto">Add Friend</button>
+<p id="feedback" role="status"></p>
+</section></main>
 <script type="module">
-    import { auth, db } from './js/firebase-config.js';
-    import { collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetUid = urlParams.get('uid');
-
-    document.getElementById('addFriendBtn').onclick = async () => {
-        const currentUser = auth.currentUser;
-        if(!currentUser) return alert("Login first");
-
-        // Fetch my current username for the request
-        const myDoc = await getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid)));
-        const myName = myDoc.docs[0].data().username;
-
-        await addDoc(collection(db, "friendRequests"), {
-            from: currentUser.uid,
-            fromName: myName,
-            to: targetUid,
-            status: "pending",
-            timestamp: new Date()
-        });
-        
-        alert("Friend request sent!");
-        document.getElementById('addFriendBtn').disabled = true;
-        document.getElementById('addFriendBtn').innerText = "Request Sent";
-    };
-</script>
+import {auth,db} from './js/firebase-config.js';
+import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import {doc,getDoc,collection,query,where,getDocs,addDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+const target=new URLSearchParams(location.search).get('uid');
+const btn=document.getElementById('addFriendBtn'),feedback=document.getElementById('feedback');
+let me=null,profile=null;
+onAuthStateChanged(auth,async user=>{
+ if(!user){location.href='login.html';return;}me=user;
+ if(!target||target===user.uid){feedback.textContent='Invalid member profile.';btn.hidden=true;return;}
+ try{
+  const snap=await getDoc(doc(db,'publicProfiles',target));
+  if(!snap.exists())throw Error('Member not found');profile=snap.data();
+  document.getElementById('memberAvatar').src=profile.avatar||'';
+  document.getElementById('memberName').textContent=profile.username||'Member';
+  document.getElementById('memberStatus').textContent=profile.status||'';
+  document.getElementById('memberBio').textContent=profile.bio||'';
+  const existing=await getDocs(query(collection(db,'friends'),where('users','array-contains',user.uid)));
+  if(existing.docs.some(d=>(d.data().users||[]).includes(target))){btn.textContent='Already Friends';btn.disabled=true;}
+ }catch(error){console.error(error);feedback.textContent='Could not load this profile.';btn.disabled=true;}
+});
+btn.addEventListener('click',async()=>{
+ if(!me||!profile)return;btn.disabled=true;
+ try{
+  const mine=await getDoc(doc(db,'publicProfiles',me.uid));
+  await addDoc(collection(db,'friendRequests'),{from:me.uid,fromName:mine.exists()?mine.data().username:'Member',to:target,status:'pending',createdAt:serverTimestamp()});
+  btn.textContent='Request Sent';feedback.textContent='Friend request sent.';
+ }catch(error){console.error(error);btn.disabled=false;feedback.textContent='Could not send request. They may already have a pending request.';}
+});
+</script></body></html>
